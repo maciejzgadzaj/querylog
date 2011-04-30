@@ -1,0 +1,86 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Install and uninstall hooks for querylog.module.
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function querylog_install() {
+  $ret = drupal_install_schema('querylog');
+  // By default, let's exclude all querylog pages from saving queries.
+  // Otherwise viewing list of saving database queries in admin section
+  // sorted in descending order would be quite impossible.
+  variable_set('querylog_filter_page_list', 'admin/reports/querylog*');
+  drupal_set_message(t('Database Query Log module has been enabled. Please take a moment to <a href="@configuration">configure it</a> and set relevant <a href="@permissions">permissions</a>.', array(
+    '@configuration'  => url('admin/settings/logging/querylog'),
+    '@permissions'    => url('http://sandbox/admin/user/permissions', array('fragment' => 'module-querylog')),
+  )));
+  return $ret;
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function querylog_uninstall() {
+  $ret = drupal_uninstall_schema('querylog');
+  $variables = array(
+    'querylog_log_queries',
+    'querylog_max_entries',
+    'querylog_print_queries',
+    'querylog_filter_function_mode',
+    'querylog_filter_function_list',
+    'querylog_filter_page_mode',
+    'querylog_filter_page_list'
+  );
+  foreach ($variables as $variable) {
+    variable_del($variable);
+  }
+  return $ret;
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function querylog_schema() {
+  $schema['querylog'] = array(
+    'description' => 'For storing executed SQL queries.',
+    'fields' => array(
+      'qid' => array(
+        'description' => '',
+        'type'        => 'serial',
+        'length'      => 10,
+        'not null'    => TRUE,
+      ),
+      'function' => array(
+        'description' => '',
+        'type'        => 'varchar',
+        'length'      => '255',
+        'not null'    => TRUE,
+      ),
+      'query' => array(
+        'description' => '',
+        'type'        => 'text',
+        'not null'    => TRUE,
+      ),
+      'uid' => array(
+        'description' => '',
+        'type'        => 'int',
+        'length'      => '10',
+        'not null'    => TRUE,
+      ),
+      'timestamp' => array(
+        'description' => '',
+        'type'        => 'int',
+        'length'      => '11',
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('qid'),
+  );
+
+  return $schema;
+}

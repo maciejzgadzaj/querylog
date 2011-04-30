@@ -1,0 +1,155 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Database query logging for developers.
+ *
+ * The Database Query Log is a module targetted at Drupal developers
+ * and inquisitive admins. It can save all/selected database queries
+ * executed by Drupal to its own database table, allowing to browse
+ * through them afterwards.
+ */
+
+/**
+ * Implementation of hook_perm().
+ * Return a list of the access control permissions that this module defines
+ */
+function querylog_perm() {
+  return array(
+    'access database query log',
+    'administer querylog',
+    'display queries',
+  );
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function querylog_menu() {
+  $items = array();
+  $items['admin/settings/logging/querylog'] = array(
+    'title'             => 'Database query log',
+    'page callback'     => 'drupal_get_form',
+    'page arguments'    => array('querylog_settings_form'),
+    'access arguments'  => array('administer querylog'),
+    'type'              => MENU_NORMAL_ITEM,
+    'description'       => 'Module to log all executed database queries and browse them later.',
+    'file'              => 'querylog.admin.inc',
+  );
+  $items['admin/reports/querylog'] = array(
+    'title' => 'Recent database queries',
+    'description' => 'View queries that have recently been executed.',
+    'page callback' => 'querylog_overview',
+    'access arguments' => array('access database query log'),
+    'file' => 'querylog.admin.inc',
+  );
+  $items['admin/reports/querylog/%'] = array(
+    'title' => 'Query Details',
+    'page callback' => 'querylog_event',
+    'page arguments' => array(3),
+    'access arguments' => array('access database query log'),
+    'type' => MENU_CALLBACK,
+    'file' => 'querylog.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_boot().
+ */
+function querylog_boot() {
+  register_shutdown_function('querylog_shutdown');
+}
+
+/**
+ * Shutdown function registered by querylog_boot().
+ * Saves all queries to database (excluding querylog queries).
+ */
+function querylog_shutdown() {
+  global $queries, $active_db, $user;
+  if (variable_get('querylog_log_queries', 0) || variable_get('querylog_print_queries', 0)) {
+    foreach ($queries as $query) {
+      // Save query to database
+      if (variable_get('querylog_log_queries', 0)) {
+        // Replace new lines and tabs with spaces
+        $replace = array("\n" => " ", "\r" => " ", "\t" => " ");
+        // preg_match will not work with long queries (for example in case of cache_set)
+        // due to PCRE's backtracking limit - http://php.net/pcre.backtrack-limit
+        $matches1 = explode(' /* ', strtr($query[0], $replace));
+        $matches2 = explode(' */ ', $matches1[1]);
+        _querylog_save_query($matches1[0], $matches2[1], $user->uid);
+      }
+      // Print query to screen
+      if (variable_get('querylog_print_queries', 0) && user_access('display queries')) {
+        _querylog_print_query($query);
+      }
+    }
+    //
+    if (variable_get('querylog_log_queries', 0)) {
+      _querylog_discard_old_queries(variable_get('querylog_max_entries', 10000));
+    }
+  }
+}
+
+/**
+ * Saves single query to database.
+ */
+function _querylog_save_query($function, $query, $uid) {
+  global $active_db;
+  $functions_to_ignore = array(
+    '_querylog_save_query',
+    '_querylog_discard_old_queries',
+  );
+  if (!in_array($function, $functions_to_ignore)) {
+    $match = TRUE;
+    // Match function name if necessary
+    if (variable_get('querylog_filter_function_list', '')) {
+      $function_list = variable_get('querylog_filter_function_list', '');
+      $match = drupal_match_path($function, $function_list);
+      // When 'querylog_filter_page_mode' variable has a value of 0, the query should be saved
+      // from all pages except those listed in 'querylog_filter_page_list' variable. When set to 1,
+      // it should be saved only from those pages listed in 'querylog_filter_page_list' variable.
+      $match = !(variable_get('querylog_filter_function_mode', 0) xor $match);
+    }
+    // Match path if necessary
+    if ($match !== FALSE && variable_get('querylog_filter_page_list', '')) {
+      $path = drupal_get_path_alias($_GET['q']);
+      $page_list = variable_get('querylog_filter_page_list', '');
+      // Compare with the internal and path alias (if any).
+      $match = drupal_match_path($path, $page_list);
+      if ($path != $_GET['q']) {
+        $match = $match || drupal_match_path($_GET['q'], $page_list);
+      }
+      // When 'querylog_filter_page_mode' variable has a value of 0, the query should be saved
+      // from all pages except those listed in 'querylog_filter_page_list' variable. When set to 1,
+      // it should be saved only from those pages listed in 'querylog_filter_page_list' variable.
+      $match = !(variable_get('querylog_filter_page_mode', 0) xor $match);
+    }
+    if ($match === TRUE) {
+      $sql = "INSERT INTO {querylog} (function, query, uid, timestamp) VALUES ('%s', '%s', '%s', %d)";
+      db_query($sql, $function, $query, $uid, time(), $active_db);
+    }
+  }
+}
+
+/**
+ * Delete old queries from database.
+ */
+function _querylog_discard_old_queries($max_queries_to_keep) {
+  $max_qid = db_result(db_query('SELECT MAX(qid) FROM {querylog}'));
+  if ($max_qid > $max_queries_to_keep) {
+    db_query('DELETE FROM {querylog} WHERE qid <= %d', $max_qid - $max_queries_to_keep);
+  }
+}
+
+/**
+ * Displays query on screen.
+ */
+function _querylog_print_query($query) {
+  ob_start();
+  print '<pre>';
+  print_r($query);
+  print '</pre>';
+  print ob_get_clean();
+}
