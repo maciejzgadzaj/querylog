@@ -15,7 +15,7 @@ function querylog_install() {
   // Otherwise viewing list of saving database queries in admin section
   // sorted in descending order would be quite impossible.
   variable_set('querylog_filter_page_list', 'admin/reports/querylog*');
-  drupal_set_message(t('Database Query Log module has been enabled. Please take a moment to <a href="@configuration">configure it</a> and set relevant <a href="@permissions">permissions</a>.', array(
+  drupal_set_message(st('Database Query Log module has been enabled. Please take a moment to <a href="@configuration">configure it</a> and set relevant <a href="@permissions">permissions</a>.', array(
     '@configuration'  => url('admin/settings/logging/querylog'),
     '@permissions'    => url('http://sandbox/admin/user/permissions', array('fragment' => 'module-querylog')),
   )));
@@ -50,30 +50,35 @@ function querylog_schema() {
     'description' => 'For storing executed SQL queries.',
     'fields' => array(
       'qid' => array(
-        'description' => '',
+        'description' => 'Query log ID',
         'type'        => 'serial',
         'length'      => 10,
         'not null'    => TRUE,
       ),
       'function' => array(
-        'description' => '',
+        'description' => 'Function which executed specific query',
         'type'        => 'varchar',
         'length'      => '255',
         'not null'    => TRUE,
       ),
       'query' => array(
-        'description' => '',
+        'description' => 'Full query',
         'type'        => 'text',
         'not null'    => TRUE,
       ),
+      'time' => array(
+        'description' => 'Query execution time',
+        'type'        => 'float',
+        'not null'    => TRUE,
+      ),
       'uid' => array(
-        'description' => '',
+        'description' => 'User ID',
         'type'        => 'int',
         'length'      => '10',
         'not null'    => TRUE,
       ),
       'timestamp' => array(
-        'description' => '',
+        'description' => 'Timestamp',
         'type'        => 'int',
         'length'      => '11',
         'not null'    => TRUE,

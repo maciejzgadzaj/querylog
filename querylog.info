@@ -1,4 +1,4 @@
-// $Id$
+; $Id$
 name = Database Query Log
 description = Logs all/selected database queries to the database.
 package = Development

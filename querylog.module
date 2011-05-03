@@ -3,25 +3,13 @@
 
 /**
  * @file
- * Database query logging for developers.
+ * Drupal database query logging module for developers.
  *
  * The Database Query Log is a module targetted at Drupal developers
  * and inquisitive admins. It can save all/selected database queries
  * executed by Drupal to its own database table, allowing to browse
  * through them afterwards.
  */
-
-/**
- * Implementation of hook_perm().
- * Return a list of the access control permissions that this module defines
- */
-function querylog_perm() {
-  return array(
-    'access database query log',
-    'administer querylog',
-    'display queries',
-  );
-}
 
 /**
  * Implementation of hook_menu().
@@ -56,6 +44,18 @@ function querylog_menu() {
 }
 
 /**
+ * Implementation of hook_perm().
+ * Return a list of the access control permissions that this module defines
+ */
+function querylog_perm() {
+  return array(
+    'access database query log',
+    'administer querylog',
+    'display queries',
+  );
+}
+
+/**
  * Implementation of hook_boot().
  */
 function querylog_boot() {
@@ -63,26 +63,36 @@ function querylog_boot() {
 }
 
 /**
+ * Register the real shutdown function,
+ * so it runs later than other shutdown functions.
+ */
+function querylog_shutdown() {
+  register_shutdown_function('querylog_shutdown_real');
+}
+
+/**
  * Shutdown function registered by querylog_boot().
  * Saves all queries to database (excluding querylog queries).
  */
-function querylog_shutdown() {
+function querylog_shutdown_real() {
   global $queries, $active_db, $user;
   if (variable_get('querylog_log_queries', 0) || variable_get('querylog_print_queries', 0)) {
-    foreach ($queries as $query) {
-      // Save query to database
-      if (variable_get('querylog_log_queries', 0)) {
-        // Replace new lines and tabs with spaces
-        $replace = array("\n" => " ", "\r" => " ", "\t" => " ");
-        // preg_match will not work with long queries (for example in case of cache_set)
-        // due to PCRE's backtracking limit - http://php.net/pcre.backtrack-limit
-        $matches1 = explode(' /* ', strtr($query[0], $replace));
-        $matches2 = explode(' */ ', $matches1[1]);
-        _querylog_save_query($matches1[0], $matches2[1], $user->uid);
+    if (count($queries)) {
+      foreach ($queries as $query) {
+        // Save query to database
+        if (variable_get('querylog_log_queries', 0)) {
+          // Replace new lines and tabs with spaces
+          $replace = array("\n" => " ", "\r" => " ", "\t" => " ");
+          // preg_match will not work with long queries (for example in case of cache_set)
+          // due to PCRE's backtracking limit - http://php.net/pcre.backtrack-limit
+          $matches1 = explode(' /* ', strtr($query[0], $replace));
+          $matches2 = explode(' */ ', $matches1[1]);
+          _querylog_save_query($matches1[0], $matches2[1], $query[1], $user->uid);
+        }
       }
       // Print query to screen
       if (variable_get('querylog_print_queries', 0) && user_access('display queries')) {
-        _querylog_print_query($query);
+        _querylog_print_queries($queries);
       }
     }
     //
@@ -95,7 +105,7 @@ function querylog_shutdown() {
 /**
  * Saves single query to database.
  */
-function _querylog_save_query($function, $query, $uid) {
+function _querylog_save_query($function, $query, $time, $uid) {
   global $active_db;
   $functions_to_ignore = array(
     '_querylog_save_query',
@@ -127,8 +137,8 @@ function _querylog_save_query($function, $query, $uid) {
       $match = !(variable_get('querylog_filter_page_mode', 0) xor $match);
     }
     if ($match === TRUE) {
-      $sql = "INSERT INTO {querylog} (function, query, uid, timestamp) VALUES ('%s', '%s', '%s', %d)";
-      db_query($sql, $function, $query, $uid, time(), $active_db);
+      $sql = "INSERT INTO {querylog} (function, query, time, uid, timestamp) VALUES ('%s', '%s', '%s', '%s', %d)";
+      db_query($sql, $function, $query, $time, $uid, time(), $active_db);
     }
   }
 }
@@ -146,10 +156,12 @@ function _querylog_discard_old_queries($max_queries_to_keep) {
 /**
  * Displays query on screen.
  */
-function _querylog_print_query($query) {
+function _querylog_print_queries($queries) {
   ob_start();
   print '<pre>';
-  print_r($query);
+  foreach ($queries as $query) {
+    print_r($query);
+  }
   print '</pre>';
   print ob_get_clean();
 }
