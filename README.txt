@@ -3,11 +3,24 @@ SUMMARY
 =======
 
 The Database Query Log is a module targetted at Drupal developers
-and inquisitive admins. It can save all/selected database queries
-executed by Drupal to its own database table, allowing to browse
-through them afterwards.
+and inquisitive admins. Similarly to Devel module, it can save
+database queries executed by Drupal to its own table, allowing
+to browse and filter through them afterwards. It also can print
+all executed queries at the bottom of each page.
 
-Not advised to be used on production sites.
+What differentiates it from Devel is that it is much more
+specialized. While Devel saves only overview of each query
+(without values), this module saves complete queries, exactly
+as they were executed. It also allows to filter queries to
+save/discard based on calling function and/or path.
+
+Additionally it provides Recent Database Queries report (similar
+to Recent Log Entries), allowing to easily browse through all
+saved queries and filter them based on various criteria.
+
+Created mainly for development purposes, not recommended
+to be used on production (especially high-traffic) sites.
+
 
 
 INSTALLATION NOTES
